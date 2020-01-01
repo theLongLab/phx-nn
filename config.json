@@ -1,0 +1,28 @@
+{
+    "loss": "phx-parameter-map/models/gbtree_dummy.pkl",
+    "training_data": "data/processed/processed_sumstats_dummy.csv",
+    "testing_data": "",
+    "trials": 2,
+    "folds": 8,
+    "epochs": 5,
+
+    "data_loader": {
+        "batch_size": 10,
+        "shuffle": true,
+        "validation_split": 0.1,
+        "num_workers": 4
+    },
+
+    "test_data_loader": {
+        "batch_size": 512,
+        "shuffle": true,
+        "validation_split": 0.1,
+        "num_workers": 4
+    },
+
+    "hparam_space": {
+        "n_layers": [1, 5],
+        "dropout_rate": [0.1, 0.5],
+        "n_units_l": [4, 128]
+    }
+}
