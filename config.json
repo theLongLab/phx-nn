@@ -1,5 +1,5 @@
 {
-    "loss": "phx-parameter-map/models/gbtree_full.pickle",
+    "loss": "phx-parameter-map-tmp/models/gbtree_full.pickle",
     "training_data": "data/processed/processed_sum_stats_train.csv",
     "testing_data": "data/processed/processed_sum_stats_test.csv",
     "trials": 200,
