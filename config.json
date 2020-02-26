@@ -1,28 +1,30 @@
 {
-    "loss": "phx-parameter-map/models/gbtree_dummy.pkl",
-    "training_data": "data/processed/processed_sumstats_dummy.csv",
-    "testing_data": "",
-    "trials": 2,
+    "loss": "phx-parameter-map/models/gbtree_full.pickle",
+    "training_data": "data/processed/processed_sum_stats_train.csv",
+    "testing_data": "data/processed/processed_sum_stats_test.csv",
+    "trials": 200,
     "folds": 8,
-    "epochs": 5,
+    "min_epochs": 50,
+    "epochs": 100,
 
     "data_loader": {
-        "batch_size": 10,
         "shuffle": true,
         "validation_split": 0.1,
         "num_workers": 4
     },
 
     "test_data_loader": {
-        "batch_size": 512,
         "shuffle": true,
         "validation_split": 0.1,
         "num_workers": 4
     },
 
     "hparam_space": {
-        "n_layers": [1, 5],
+        "n_layers": [2, 10],
         "dropout_rate": [0.1, 0.5],
-        "n_units_l": [4, 128]
+        "n_units_l": [4, 128],
+        "batch_size": [64, 128, 256],
+        "lr": [5e-3, 1e-2],
+        "final_lr": [5e-2, 5e-1]
     }
 }
