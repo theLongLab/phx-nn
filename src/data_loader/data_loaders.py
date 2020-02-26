@@ -44,6 +44,7 @@ class SumStatDataLoader(BaseDataLoader):
         shuffle: bool = False,
         validation_split: Union[float, int] = 0.0,
         num_workers: int = 0,
+        test_set: bool = False,
     ) -> None:
         self.data: torch.Tensor = data
         self.dataset: Dataset = SumStatDataset(data=data)
@@ -54,4 +55,5 @@ class SumStatDataLoader(BaseDataLoader):
             shuffle=shuffle,
             validation_split=validation_split,
             num_workers=num_workers,
+            test_set=test_set,
         )

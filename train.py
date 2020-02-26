@@ -14,24 +14,27 @@ import pandas as pd
 import pytorch_lightning as pl
 import ray
 from sklearn.base import BaseEstimator
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import KFold
 import torch
 import torch.nn as nn
 from xgboost import XGBRegressor
 
 from src.logging import DictLogger
 from src.model import HParamNet, LightningHParamNet
+from src.utils import early_stop_callback, train_checkpoint_callback
 
 
 # Boilerplate to set up checkpoint directory structure and initialize ray.
 CHECKPOINT_DIR_NAME: str = datetime.now().strftime("%Y%m%d_%H%M")
 TRAIN_CHECKPOINT_DIR: Path = Path(Path.cwd(), "saved", CHECKPOINT_DIR_NAME, "training")
+TRAIN_LOGS_DIR: Path = Path(TRAIN_CHECKPOINT_DIR, "train_logs")
 TRAIN_CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+TRAIN_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-ray.init()
+ray.init(num_cpus=32, num_gpus=4)
 
 
-@ray.remote(num_gpus=0.5)  # fractional GPU to fit 2 CV rounds on a single GPU
+@ray.remote(num_cpus=4, num_gpus=0.5)  # fractional GPU to fit 2 CV rounds on a single GPU
 def _proc(
     est: nn.Module,
     cvtrain_data: torch.Tensor,
@@ -83,12 +86,23 @@ def _proc(
     trainer: pl.Trainer = pl.Trainer(
         logger=logger,
         checkpoint_callback=checkpoint_callback,
+        early_stop_callback=early_stop_callback(),
+        # early_stop_callback=None,
         gpus=1,
+        min_nb_epochs=50,
         max_nb_epochs=epochs,
+        # distributed_backend="ddp",
         use_amp=True,
     )
     trainer.fit(model)
-    trainer.test()
+
+    checkpoint = torch.load(
+        next(Path(TRAIN_CHECKPOINT_DIR, logger.version).iterdir()),
+        map_location=lambda storage, loc: storage,
+    )
+    model.load_state_dict(checkpoint["state_dict"])
+    trainer.test(model)
+    logger.save()
 
     return logger.metrics[-1]["mean_test_loss"]
 
@@ -141,10 +155,9 @@ def objective(
                 cvval_data=data[cv_rounds[i][1]],
                 loss_fn=loss_fn,
                 data_loader_args=data_loader_args,
-                logger=DictLogger("{}.{}".format(trial.number, i)),
-                checkpoint_callback=pl.callbacks.ModelCheckpoint(
-                    Path(TRAIN_CHECKPOINT_DIR, "trial_{}_{}".format(trial.number, i)),
-                    save_best_only=False,
+                logger=DictLogger("trial_{}_{}".format(trial.number, i), TRAIN_LOGS_DIR),
+                checkpoint_callback=train_checkpoint_callback(
+                    Path(TRAIN_CHECKPOINT_DIR, "trial_{}_{}".format(trial.number, i))
                 ),
                 epochs=epochs,
             )
@@ -188,7 +201,6 @@ def main(config: Mapping[str, Any], seed: Optional[int]) -> None:
 
     # Optuna study loop.
     study: Study = create_study()
-
     trial: Trial
     study.optimize(
         lambda trial: objective(  # lambda to pass parameters into the objective fn

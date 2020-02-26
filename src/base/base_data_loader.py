@@ -4,8 +4,9 @@ from typing import Any, Callable, Dict, NoReturn, Optional, Tuple, Union
 
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.dataloader import default_collate  # mypy bug, the fn is there
+from torch.utils.data.dataloader import default_collate  # type: ignore
 from torch.utils.data.sampler import Sampler, SubsetRandomSampler
+from torch.utils.data.distributed import DistributedSampler
 
 
 class BaseDataLoader(DataLoader):
@@ -58,6 +59,7 @@ class BaseDataLoader(DataLoader):
         validation_split: Union[float, int] = 0.0,
         num_workers: int = 0,
         collate_fn: Callable = default_collate,
+        test_set: bool = False,
     ) -> None:
         self.validation_split: Union[float, int] = validation_split
         self.shuffle: bool = shuffle
@@ -67,12 +69,19 @@ class BaseDataLoader(DataLoader):
         # Setting the training/validation set samplers. Both samplers are `None` if validation split
         # is set to 0.
         samplers: Optional[
-            Tuple[Optional[SubsetRandomSampler], Optional[SubsetRandomSampler]]
-        ] = self._split_sampler(self.validation_split)
+            Tuple[
+                Optional[Union[DistributedSampler, SubsetRandomSampler]],
+                Optional[Union[DistributedSampler, SubsetRandomSampler]],
+            ]
+        ] = self._split_sampler(self.validation_split, test_set)
 
         # Guard against _split_sampler throwing an error.
-        self.sampler: Optional[SubsetRandomSampler] = samplers[0] if samplers else None
-        self.valid_sampler: Optional[SubsetRandomSampler] = samplers[1] if samplers else None
+        self.sampler: Optional[Union[DistributedSampler, SubsetRandomSampler]] = samplers[
+            0
+        ] if samplers else None
+        self.valid_sampler: Optional[Union[DistributedSampler, SubsetRandomSampler]] = samplers[
+            1
+        ] if samplers else None
 
         # Keyword arguments for the torch DataLoader.
         self.init_kwargs: Dict[str, Any] = {
@@ -90,8 +99,14 @@ class BaseDataLoader(DataLoader):
         super().__init__(**self.init_kwargs)
 
     def _split_sampler(
-        self, split: Union[float, int]
-    ) -> Union[NoReturn, Tuple[Optional[SubsetRandomSampler], Optional[SubsetRandomSampler]]]:
+        self, split: Union[float, int], test_set: bool = False
+    ) -> Union[
+        NoReturn,
+        Tuple[
+            Optional[Union[DistributedSampler, SubsetRandomSampler]],
+            Optional[Union[DistributedSampler, SubsetRandomSampler]],
+        ],
+    ]:
         """
         Randomly splits data indices into training and validation sets and create the
         corresponding sampler objects. Throws error if the validation set size is configured to be
@@ -137,8 +152,12 @@ class BaseDataLoader(DataLoader):
         train_idx: np.ndarray = np.delete(idx_full, np.arange(0, len_valid))
 
         # Training and validation set sampler objects.
-        train_sampler: SubsetRandomSampler = SubsetRandomSampler(train_idx)
-        valid_sampler: SubsetRandomSampler = SubsetRandomSampler(valid_idx)
+        train_sampler: Union[DistributedSampler, SubsetRandomSampler] = SubsetRandomSampler(
+            train_idx
+        ) if not test_set else DistributedSampler(train_idx)
+        valid_sampler: Union[DistributedSampler, SubsetRandomSampler] = SubsetRandomSampler(
+            valid_idx
+        ) if not test_set else DistributedSampler(train_idx)
 
         # Turn off shuffle option which is mutually exclusive with sampler option.
         self.shuffle = False

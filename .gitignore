@@ -76,9 +76,15 @@ target/
 .ipynb_checkpoints/
 
 # exclude data from source control by default
+/phx-parameter-map-tmp/models/
 /data/
 /saved/
 .flake8
+/log/
+/notebooks/
+pid
+test.sh
+/phx-parameter-map-tmp/
 
 # Mac OS-specific storage files
 .DS_Store
